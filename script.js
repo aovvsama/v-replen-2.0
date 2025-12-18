@@ -519,19 +519,22 @@ async function exportToExcel() {
         // 获取批次信息（从第一个项目中提取）
         const batchNumber = replenishmentList[0]?.batchNumber || '';
         
-        // 计算总件数
-        const totalQty = replenishmentList.reduce((sum, item) => sum + item.orderQty, 0);
+        // 计算总件数 - 汇总整个到货表的Order Qty列
+        const totalQty = arrivalData.reduce((sum, item) => {
+            const orderQty = parseInt(getFieldValue(item, ['Order Qty', '到货数量', '数量', 'Qty']) || 0);
+            return sum + (isNaN(orderQty) ? 0 : orderQty);
+        }, 0);
         
         // 准备数据
         const wsData = [
             // 标题行
-            ['V-Replenishment 智能补货清单', '', '', '', '', '', '', '', '', ''],
-            [`生成时间: ${new Date().toLocaleString('zh-CN')}`, '', '', '', '', '', '', '', '', ''],
-            [`门店: 北京三里屯`, '', '', '', '', '', '', '', '', ''],
-            [`批次: ${batchNumber}`, '', '', '', '', '', '', '', '', ''],
-            [`总件数: ${totalQty}`, '', '', '', '', '', '', '', '', ''], // 新增行
+            ['V-Replenishment 智能补货清单', '', '', '', '', '', '', '', ''],
+            [`生成时间: ${new Date().toLocaleString('zh-CN')}`, '', '', '', '', '', '', '', ''],
+            [`门店: 北京三里屯`, '', '', '', '', '', '', '', ''],
+            [`批次: ${batchNumber}`, '', '', '', '', '', '', '', ''],
+            [`总件数: ${totalQty}`, '', '', '', '', '', '', '', ''],
             [], // 空行
-            // 表头行
+            // 表头行（已去掉零售价列）
             [
                 '状态',
                 'ProductGender',
@@ -540,25 +543,23 @@ async function exportToExcel() {
                 'Size',          // 原Color列已删除，Size列位置提前
                 'Order Qty',
                 '当前库存',
-                '零售价',         // 原品牌、分类、优先级列已删除
                 '备注'
             ]
         ];
         
         // 添加数据行
         replenishmentList.forEach((item, index) => {
-            // 组合Item Number和Color作为Color Choice
-            const colorChoice = `${item.itemNumber} ${item.color}`.trim();
+            // 组合Item Number和Color作为Color Choice（中间没有空格）
+            const colorChoice = `${item.itemNumber}${item.color}`.trim();
             
             const row = [
                 item.isNew ? 'NEW' : '补货',
                 item.productGender,
-                colorChoice,  // Color Choice列：Item Number + Color
+                colorChoice,  // Color Choice列：Item Number + Color（无空格）
                 item.productName,
                 item.size,    // Size列
                 item.orderQty,
                 item.currentStock,
-                formatPrice(item.retailPrice),
                 item.isNew ? '新品首次到货' : (item.currentStock === 0 ? '库存为0需优先补货' : '库存不足需补货')
             ];
             
@@ -568,7 +569,7 @@ async function exportToExcel() {
         // 创建工作表
         const ws = XLSX.utils.aoa_to_sheet(wsData);
         
-        // 设置列宽
+        // 设置列宽（已去掉零售价列的宽度设置）
         const wscols = [
             { wch: 8 },   // 状态
             { wch: 12 },  // ProductGender
@@ -577,18 +578,17 @@ async function exportToExcel() {
             { wch: 8 },   // Size
             { wch: 12 },  // Order Qty
             { wch: 12 },  // 当前库存
-            { wch: 12 },  // 零售价
             { wch: 25 }   // 备注
         ];
         ws['!cols'] = wscols;
         
-        // 合并标题单元格
+        // 合并标题单元格（列数已减少）
         ws['!merges'] = [
-            { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } }, // 主标题
+            { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } }, // 主标题
             { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },  // 时间
             { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } },  // 门店
             { s: { r: 3, c: 0 }, e: { r: 3, c: 4 } },   // 批次
-            { s: { r: 4, c: 0 }, e: { r: 4, c: 4 } }    // 新增：总件数行
+            { s: { r: 4, c: 0 }, e: { r: 4, c: 4 } }    // 总件数行
         ];
         
         // 添加到工作簿
